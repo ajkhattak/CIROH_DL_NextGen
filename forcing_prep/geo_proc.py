@@ -59,6 +59,8 @@ def process_geo_data(gdf, data, name, y_lat_dim, x_lon_dim,out_dir = '', redo = 
     if save.exists() and redo != True:
         print(f"Reading {name} coverage from file")
         coverage = ddf.read_parquet(save).compute()
+        data = data_sub
+        #NJF FIXME this isn't quite right if coverage is created based on biggerdata below?????
     else:
         # If we don't have weights cached, compute and save them
         weight_raster = (
@@ -70,6 +72,7 @@ def process_geo_data(gdf, data, name, y_lat_dim, x_lon_dim,out_dir = '', redo = 
         print("Computing Weights")
         try:
             weights_df = get_weights_df(gdf, weight_raster)
+            data = data_sub
         except:
             print('weight_raster may not have enough coverage. Try expanding size of sliced raster')
             x_lon_diff = data[x_lon_dim][1].values - data[x_lon_dim][0].values
@@ -87,6 +90,7 @@ def process_geo_data(gdf, data, name, y_lat_dim, x_lon_dim,out_dir = '', redo = 
                 .compute()
             )
             weights_df = get_weights_df(gdf, weight_raster)
+            data = biggerdata
         print("Creating Coverage")
         coverage = get_all_cov(data, weights_df, y_lat_dim = y_lat_dim, x_lon_dim = x_lon_dim)
         coverage.to_parquet(save)
@@ -107,11 +111,15 @@ def process_geo_data(gdf, data, name, y_lat_dim, x_lon_dim,out_dir = '', redo = 
     # KeyError: ('<this-array>-agg_xr5-1d8d7d6b0dd083c3658d89ffacb65555', 0, 0, 1)
     # when the results try to join :confused:
     # but seemed to work on on smaller domains (e.g. a camels basin)
-
+    print("Data array before chunking: ")
+    print(data)
     # Rechunk data through time, but ensure the entire spatial extent is in mem
     data = data.chunk(
         {"variable": cvar, y_lat_dim: -1, x_lon_dim: -1, "time": ctime}
     )
+    print("Data re-chunked:")
+    print(data)
+    #assert False
     # Build the template data array for the outputs
     coords = {
         "time": data.time,
